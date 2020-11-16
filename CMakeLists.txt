@@ -1,0 +1,232 @@
+### VERSION INFO
+set(OpenPose_VERSION_MAJOR 1)
+set(OpenPose_VERSION_MINOR 6)
+set(OpenPose_VERSION_PATCH 0)
+set(OpenPose_VERSION ${OpenPose_VERSION_MAJOR}.${OpenPose_VERSION_MINOR}.${OpenPose_VERSION_PATCH})
+
+### OS-DEPENDENT FLAGS
+set(CMAKE_MACOSX_RPATH 1)
+
+### CMAKE HEADERS
+if (${CMAKE_VERSION} VERSION_GREATER 3.9.0)
+  cmake_policy(SET CMP0048 NEW)
+  project(OpenPose VERSION ${OpenPose_VERSION})
+elseif (${CMAKE_VERSION} VERSION_GREATER 3.0.0)
+  cmake_policy(SET CMP0048 NEW)
+  project(OpenPose VERSION ${OpenPose_VERSION})
+else (${CMAKE_VERSION} VERSION_GREATER 3.9.0)
+  project(OpenPose)
+endif (${CMAKE_VERSION} VERSION_GREATER 3.9.0)
+cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+
+
+### FLAGS
+# Turn on C++11
+add_definitions(-std=c++11)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
+# C++ additional flags
+if (CMAKE_COMPILER_IS_GNUCXX)
+  message(STATUS "GCC detected, adding compile flags")
+  # set(OP_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wpedantic -Wall -Wextra -Wfatal-errors")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+  set(OP_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic -Wall -Wextra -Wfatal-errors")
+  # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Wpedantic -Wall -Wextra -Wfatal-errors")
+endif (CMAKE_COMPILER_IS_GNUCXX)
+
+# Select the Enhanced Instruction Set
+set(INSTRUCTION_SET NONE CACHE STRING "Enable Enhanced Instruction Set")
+set_property(CACHE INSTRUCTION_SET PROPERTY STRINGS NONE AVX2)
+if (${INSTRUCTION_SET} MATCHES "AVX2")
+  add_definitions("-DWITH_AVX")
+endif (${INSTRUCTION_SET} MATCHES "AVX2")
+
+if (${INSTRUCTION_SET} MATCHES "AVX2")
+  set(SIMD_FLAGS "${SIMD_FLAGS} -mavx -march=native")
+endif (${INSTRUCTION_SET} MATCHES "AVX2")
+message(STATUS "GCC detected, adding compile flags")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SIMD_FLAGS}")
+
+
+### PROJECT OPTIONS
+# Select the DL Framework
+set(DL_FRAMEWORK CAFFE CACHE STRING "Select Deep Learning Framework.")
+set_property(CACHE DL_FRAMEWORK PROPERTY STRINGS CAFFE NV_CAFFE)
+
+# Suboptions for Caffe DL Framework
+include(CMakeDependentOption)
+if (${DL_FRAMEWORK} MATCHES "CAFFE" OR ${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+  # OpenPose flags
+  add_definitions(-DUSE_CAFFE)
+  # Nvidia NVCaffe
+  if (${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+      MESSAGE(STATUS "Using NVIDIA NVCaffe")
+      add_definitions(-DNV_CAFFE)
+  endif (${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+endif (${DL_FRAMEWORK} MATCHES "CAFFE" OR ${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+
+# Set the acceleration library
+set(GPU_MODE CUDA CACHE STRING "Select the acceleration GPU library or CPU otherwise.")
+set_property(CACHE GPU_MODE PROPERTY STRINGS CUDA OPENCL CPU_ONLY)
+
+# Look for CUDA
+set(CUDA_FOUND FALSE)
+find_package(CUDA)
+
+# Handle desired GPU mode option
+# OpenPose flags
+add_definitions(-DUSE_CUDA)
+message(STATUS "Building with CUDA.")
+
+# Sub options for GPU architectures
+set(CUDA_ARCH Auto CACHE STRING "Select target NVIDIA GPU achitecture.")
+set_property(CACHE CUDA_ARCH PROPERTY STRINGS Auto All Manual)
+# Sub options for acceleration library
+option(USE_CUDNN "Build OpenPose with cuDNN library support." ON)
+
+# Set the acceleration library
+set(WITH_EIGEN NONE CACHE STRING "Select the Eigen mode: NONE if not required, BUILD to let OpenPose download it, or FIND to let CMake find it (e.g., if you installed it manually or used `sudo apt-get install libeigen3-dev`).")
+set_property(CACHE WITH_EIGEN PROPERTY STRINGS NONE BUILD FIND)
+
+# Download the models
+option(DOWNLOAD_BODY_25_MODEL "Download body 25-keypoint (body COCO and 6-keypoint foot) model." ON)
+option(DOWNLOAD_BODY_COCO_MODEL "Download body 18-keypoint COCO model." OFF)
+option(DOWNLOAD_BODY_MPI_MODEL "Download body 15-keypoint MPI model." OFF)
+option(DOWNLOAD_FACE_MODEL "Download face model." ON)
+option(DOWNLOAD_HAND_MODEL "Download hand model." ON)
+
+option(BUILD_EXAMPLES "Build OpenPose examples." ON)  # More options
+option(BUILD_SHARED_LIBS "Build as shared lib." ON)  # Build as shared library
+
+# Threads - Pthread
+unset(CMAKE_THREAD_LIBS_INIT CACHE)
+find_package(Threads)
+
+### FIND REQUIRED PACKAGES
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
+
+# Calibration
+message("${WITH_EIGEN}")
+if (NOT ${WITH_EIGEN} MATCHES "NONE")
+  # OpenPose flags
+  add_definitions(-DUSE_EIGEN)
+  # OpenPose download/builds Eigen
+  if (${WITH_EIGEN} MATCHES "BUILD")
+    # Download it
+    set(OP_URL "http://posefs1.perception.cs.cmu.edu/OpenPose/3rdparty/")
+    set(FIND_LIB_PREFIX ${CMAKE_SOURCE_DIR}/3rdparty/)
+    download_zip("eigen_2018_05_23.zip" ${OP_URL} ${FIND_LIB_PREFIX} 29B9B2FD4679D587BB67467F09EE8365)
+    # Set path
+    set(EIGEN3_INCLUDE_DIRS "3rdparty/eigen/include/")
+  # Leave to CMake to find it
+  elseif (${WITH_EIGEN} MATCHES "FIND")
+    # Eigen
+    if (CUDA_VERSION_STRING STRGREATER "9.0")
+      find_package(Eigen3 3.3.5 REQUIRED NO_MODULE)
+    else (CUDA_VERSION_STRING STRGREATER "9.0")
+      find_package(Eigen3 3 REQUIRED NO_MODULE)
+    endif (CUDA_VERSION_STRING STRGREATER "9.0")
+  endif (${WITH_EIGEN} MATCHES "BUILD")
+endif (NOT ${WITH_EIGEN} MATCHES "NONE")
+
+include(cmake/Cuda.cmake)
+find_package(CuDNN)
+find_package(GFlags) # For Caffe and OpenPose
+
+if (OpenCV_CONFIG_FILE)
+  include (${OpenCV_CONFIG_FILE})
+# Allow explicitly setting the OpenCV includes and libs
+elseif (OpenCV_INCLUDE_DIRS AND OpenCV_LIBS)
+  set(OpenCV_FOUND 1)
+elseif (OpenCV_INCLUDE_DIRS AND OpenCV_LIBS_DIR)
+  file(GLOB_RECURSE OpenCV_LIBS "${OpenCV_LIBS_DIR}*.so")
+  set(OpenCV_FOUND 1)
+else (OpenCV_CONFIG_FILE)
+  find_package(OpenCV)
+endif (OpenCV_CONFIG_FILE)
+
+
+# Set CUDA Flags
+set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
+set(CUDA_NVCC_FLAGS_DEBUG "${CUDA_NVCC_FLAGS_DEBUG} -D_DEBUG -g")
+
+if (NOT CUDA_FOUND)
+  message(STATUS "CUDA not found.")
+  execute_process(COMMAND cat install_cuda.sh WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/ubuntu)
+  message(FATAL_ERROR "Install CUDA using the above commands.")
+endif (NOT CUDA_FOUND)
+if (USE_CUDNN AND NOT CUDNN_FOUND)
+  message(STATUS "cuDNN not found.")
+  execute_process(COMMAND cat install_cudnn.sh WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/ubuntu)
+  message(FATAL_ERROR "Install cuDNN using the above commands. or turn off cuDNN by setting USE_CUDNN to OFF.")
+endif (USE_CUDNN AND NOT CUDNN_FOUND)
+if (NOT GFLAGS_FOUND)
+  message(FATAL_ERROR "GFlags not found. Install GFlags from the command line using the command(s) --\
+    sudo apt-get install libgflags-dev")
+endif (NOT GFLAGS_FOUND)
+if (NOT OpenCV_FOUND)
+  message(FATAL_ERROR "OpenCV not found. Install OpenCV from the command line using the command(s) --\
+    sudo apt-get install libopencv-dev")
+endif (NOT OpenCV_FOUND)
+
+
+### CAFFE/NVCAFFE in Ubuntu
+SET(Caffe_INCLUDE_DIRS "/usr/local/include")
+SET(Caffe_LIBS "/usr/local/lib/libcaffe.so.1.0.0")
+if (${DL_FRAMEWORK} MATCHES "CAFFE" OR ${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+  # Check if the user specified caffe paths
+  if (Caffe_INCLUDE_DIRS AND Caffe_LIBS)
+    message(STATUS "\${Caffe_INCLUDE_DIRS} set by the user to " ${Caffe_INCLUDE_DIRS})
+    message(STATUS "\${Caffe_LIBS} set by the user to " ${Caffe_LIBS})
+    set(Caffe_FOUND 1)
+  endif (Caffe_INCLUDE_DIRS AND Caffe_LIBS)
+
+  if (NOT Caffe_FOUND)
+    message(FATAL_ERROR "Caffe not found. Specify the path of Caffe includes and libs using -DCaffe_INCLUDE_DIRS and -DCaffe_LIBS.")
+  endif (NOT Caffe_FOUND)
+endif (${DL_FRAMEWORK} MATCHES "CAFFE" OR ${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+
+### PROJECT INCLUDES
+include_directories(include ${GFLAGS_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+
+# Calibration
+if (NOT ${WITH_EIGEN} MATCHES "NONE")
+  include_directories(${EIGEN3_INCLUDE_DIRS})
+  set(OpenPose_3rdparty_libraries ${OpenPose_3rdparty_libraries} Eigen3::Eigen)
+endif (NOT ${WITH_EIGEN} MATCHES "NONE")
+
+if (Caffe_FOUND)
+  message("ADD CAFFE INCLUDE DIRECTORIES!")
+  include_directories(${Caffe_INCLUDE_DIRS})
+endif (Caffe_FOUND)
+
+include_directories(${CUDA_INCLUDE_DIRS})
+
+
+### COLLECT ALL 3RD-PARTY LIBRARIES TO BE LINKED AGAINST
+set(OpenPose_3rdparty_libraries ${OpenPose_3rdparty_libraries} ${OpenCV_LIBS})
+set(examples_3rdparty_libraries ${OpenPose_3rdparty_libraries} ${GFLAGS_LIBRARY})
+if (${DL_FRAMEWORK} MATCHES "CAFFE" OR ${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+  set(OpenPose_3rdparty_libraries ${OpenPose_3rdparty_libraries} ${Caffe_LIBS})
+endif (${DL_FRAMEWORK} MATCHES "CAFFE" OR ${DL_FRAMEWORK} MATCHES "NV_CAFFE")
+set(OpenPose_3rdparty_libraries ${OpenPose_3rdparty_libraries} pthread)
+
+### ADD SUBDIRECTORIES
+if (Caffe_FOUND)
+  add_subdirectory(src)
+endif (Caffe_FOUND)
+
+### INSTALL
+if (Caffe_FOUND)
+  # Install the headers
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/openpose DESTINATION include)
+  install(EXPORT OpenPose DESTINATION lib/OpenPose)
+
+  configure_file(${CMAKE_SOURCE_DIR}/cmake/OpenPoseConfig.cmake.in ${CMAKE_BINARY_DIR}/cmake/OpenPoseConfig.cmake @ONLY)
+  install(FILES ${CMAKE_BINARY_DIR}/cmake/OpenPoseConfig.cmake DESTINATION lib/OpenPose)
+  configure_file("${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in" "${CMAKE_BINARY_DIR}/cmake_uninstall.cmake" IMMEDIATE @ONLY)
+
+  add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+endif (Caffe_FOUND)
+
+# message(${OpenPose_3rdparty_libraries})
