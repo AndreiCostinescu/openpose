@@ -61,7 +61,7 @@ namespace op
         const WrapperStructExtra& wrapperStructExtra, const WrapperStructInput& wrapperStructInput,
         const WrapperStructOutput& wrapperStructOutput, const WrapperStructGui& wrapperStructGui,
         const std::array<std::vector<TWorker>, int(WorkerType::Size)>& userWs,
-        const std::array<bool, int(WorkerType::Size)>& userWsOnNewThread);
+        const std::array<bool, int(WorkerType::Size)>& userWsOnNewThread, bool verbose = false);
 
     /**
      * It fills camera parameters and splits the cvMat depending on how many camera parameter matrices are found.
@@ -102,7 +102,7 @@ namespace op
         const WrapperStructExtra& wrapperStructExtra, const WrapperStructInput& wrapperStructInput,
         const WrapperStructOutput& wrapperStructOutput, const WrapperStructGui& wrapperStructGui,
         const std::array<std::vector<TWorker>, int(WorkerType::Size)>& userWs,
-        const std::array<bool, int(WorkerType::Size)>& userWsOnNewThread)
+        const std::array<bool, int(WorkerType::Size)>& userWsOnNewThread, bool verbose)
     {
         try
         {
@@ -206,9 +206,10 @@ namespace op
                     numberGpuThreads = totalGpuNumber - gpuNumberStart;
                     // Reset initial GPU to 0 (we want them all)
                     // Logging message
+                    Priority gpuLogPriority = verbose ? Priority::High : Priority::Normal;
                     opLog("Auto-detecting all available GPUs... Detected " + std::to_string(totalGpuNumber)
                         + " GPU(s), using " + std::to_string(numberGpuThreads) + " of them starting at GPU "
-                        + std::to_string(gpuNumberStart) + ".", Priority::High);
+                        + std::to_string(gpuNumberStart) + ".", gpuLogPriority);
                 }
                 // Sanity check
                 if (gpuNumberStart + numberGpuThreads > totalGpuNumber)

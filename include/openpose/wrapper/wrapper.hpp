@@ -107,7 +107,7 @@ namespace op
          * Similar to start(), but exec() blocks the thread that calls the function (it saves 1 thread). Use exec()
          * instead of start() if the calling thread will otherwise be waiting for the WrapperT to end.
          */
-        void exec();
+        void exec(bool verbose = false);
 
         /**
          * Function to start multi-threading.
@@ -118,7 +118,7 @@ namespace op
          * exception similar to: `QMetaMethod::invoke: Unable to invoke methods with return values in queued
          * connections`. Use exec() in that case.
          */
-        void start();
+        void start(bool verbose = false);
 
         /**
          * Function to stop multi-threading.
@@ -408,14 +408,14 @@ namespace op
     }
 
     template<typename TDatum, typename TDatums, typename TDatumsSP, typename TWorker>
-    void WrapperT<TDatum, TDatums, TDatumsSP, TWorker>::exec()
+    void WrapperT<TDatum, TDatums, TDatumsSP, TWorker>::exec(bool verbose)
     {
         try
         {
             configureThreadManager<TDatum, TDatums, TDatumsSP, TWorker>(
                 mThreadManager, mMultiThreadEnabled, mThreadManagerMode, mWrapperStructPose, mWrapperStructFace,
                 mWrapperStructHand, mWrapperStructExtra, mWrapperStructInput, mWrapperStructOutput, mWrapperStructGui,
-                mUserWs, mUserWsOnNewThread);
+                mUserWs, mUserWsOnNewThread, verbose);
             opLog("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
             mThreadManager.exec();
         }
@@ -426,14 +426,14 @@ namespace op
     }
 
     template<typename TDatum, typename TDatums, typename TDatumsSP, typename TWorker>
-    void WrapperT<TDatum, TDatums, TDatumsSP, TWorker>::start()
+    void WrapperT<TDatum, TDatums, TDatumsSP, TWorker>::start(bool verbose)
     {
         try
         {
             configureThreadManager<TDatum, TDatums, TDatumsSP, TWorker>(
                 mThreadManager, mMultiThreadEnabled, mThreadManagerMode, mWrapperStructPose, mWrapperStructFace,
                 mWrapperStructHand, mWrapperStructExtra, mWrapperStructInput, mWrapperStructOutput, mWrapperStructGui,
-                mUserWs, mUserWsOnNewThread);
+                mUserWs, mUserWsOnNewThread, verbose);
             opLog("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
             mThreadManager.start();
         }
